@@ -1,0 +1,159 @@
+@name mShooter
+@inputs [EGP]:wirelink
+@inputs [User]:entity
+@persist [CurUser]:entity
+@persist [Playing Cooldown Objs End Score]:number
+@persist [Bullets]:table
+
+if(first())
+{
+    entity():createWire(entity():isWeldedTo(), "EGP", "wirelink")
+    entity():createWire(entity():isWeldedTo(), "User", "User")
+    
+    EGP:egpClear()
+    
+    EGP:egpBox(1, vec2(256), vec2(512))
+    EGP:egpMaterial(1, "skybox/sky_dust_hdrft")
+    
+    EGP:egpRoundedBox(2, vec2(256, 128), vec2(384, 96))
+    EGP:egpColor(2, vec(0, 125, 255))
+    
+    EGP:egpText(3, "mShooter - Press E to Start!", vec2(256, 128))
+    EGP:egpAlign(3, 1, 1)
+    EGP:egpSize(3, 32)
+    
+    Score = 5
+
+    function number circleIntersection(V1:vector2, V2:vector2, Radius:number)
+    {
+        return V1:distance(V2) < Radius * 1.2
+    }
+    
+    runOnFile(1)
+    fileLoad("ShooterScore.txt")
+}
+
+elseif(fileClk())
+{
+    print(fileRead() == "")
+}
+
+elseif(inputClkName() == "User" & !Playing & !End)
+{
+    EGP:egpRemove(2)
+    EGP:egpRemove(3)
+    EGP:egpRemove(4)
+    EGP:egpRemove(5)
+    
+    Playing = 1
+    CurUser = User
+    for(I = 2, 5)
+    {
+        Angle = random(1, 360)
+        EGP:egpCircle(I, vec2(256) + vec2(cos(Angle) * 250, sin(Angle) * 250), vec2(8))
+    }
+    
+    EGP:egpBox(6, vec2(256), vec2(64))
+    EGP:egpMaterial(6, "vgui/gfx/vgui/ak47")
+    
+    EGP:egpText(7, "Score: 0", vec2(0, 0))
+    EGP:egpSize(7, 32)
+    EGP:egpColor(7, vec(0))
+    
+    Objs = 8
+}
+
+elseif(clk("ShootCooldown"))
+{
+    Cooldown = 0
+}
+
+elseif(clk("Reset"))
+{
+    reset()
+}
+
+else
+{
+    interval(100)
+    
+    if(Playing & !End)
+    {
+        CursorPos = EGP:egpCursor(CurUser)
+
+        
+        if(CurUser:keyUse() & !Cooldown)
+        {
+            DY = CursorPos:y() - 256
+            DX = CursorPos:x() - 256
+            Ang = -toDeg(atan2(comp(DY, DX))) + 70
+            
+            Cooldown = 1
+            Objs++
+            EGP:egpCircle(Objs, vec2(256) + vec2(cos(Ang), sin(Ang)) * 32, vec2(8))
+            EGP:egpColor(Objs, vec(0))
+            Bullets[Objs:toString(), vector2] = vec2(cos(Ang), sin(Ang))
+            timer("ShootCooldown", 1000)
+        }
+        
+        elseif(CursorPos != vec2(-1))
+        {
+            DY = CursorPos:y() - 256
+            DX = CursorPos:x() - 256
+            Ang = toDeg(atan2(comp(DY, DX))) + 260
+            EGP:egpAngle(6, Ang)
+        
+            for(I = 2, 5)
+            {
+                EGP:egpPos(I, EGP:egpPos(I) + (vec2(256) - EGP:egpPos(I)):normalized() * Score / 25)
+                
+                if(EGP:egpPos(I):distance(vec2(256)) < 30)
+                {
+                    End = 1
+                    NumObjs = EGP:egpNumObjects()
+                    EGP:egpRoundedBox(NumObjs, vec2(256), vec2(384, 128))
+                    EGP:egpColor(NumObjs, vec(0, 125, 255))
+                    
+                    EGP:egpText(NumObjs + 1, "Game Over!", vec2(256))
+                    EGP:egpAlign(NumObjs + 1, 1, 1)
+                    EGP:egpSize(NumObjs + 1, 42)
+                    stoptimer("interval")
+                    timer("Reset", 2000)
+                    break
+                }
+            }
+            
+            foreach(K, V:vector2 = Bullets)
+            {
+                EGP:egpPos(K:toNumber(), EGP:egpPos(K:toNumber()) + V * 15)
+                
+                Pos = EGP:egpPos(K:toNumber())
+                
+                if(Pos:x() > 512 | Pos:x() < 0 | Pos:y() > 512 | Pos:y() < 0)
+                {
+                    Bullets:remove(K)
+                    EGP:egpRemove(K:toNumber())
+                }
+                
+                for(I = 2, 5)
+                {
+                    if(circleIntersection(EGP:egpPos(K:toNumber()), EGP:egpPos(I), 8))
+                    {
+                        Bullets:remove(K)
+                        EGP:egpRemove(K:toNumber())
+                        Angle = random(1, 360)
+                        EGP:egpPos(I, vec2(256) + vec2(cos(Angle) * 250, sin(Angle) * 250))
+                        Score += 5
+                        EGP:egpSetText(7, "Score: " + Score)
+                    }
+                }
+            }
+        }
+
+        if(CurUser:pos():distance(EGP:entity():pos()) > 200)
+        {
+            reset()
+        }
+    }
+}
+
